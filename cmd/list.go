@@ -57,8 +57,9 @@ trr list -filter uploading -sort added,name - list uloading torrents sorted by
 		}
 		// ID     Done       Have  ETA           Up    Down  Ratio  Status       Name
 		//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
+		fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
 		for _, t := range ts {
-			fmt.Printf("%5d %3.0f%% %9s %9s %7s %7s %4.1f %-13s %s\n",
+			fmt.Printf("%5d %3.0f%% %9s %9s %7s %7s %5.1f %-13s %s\n",
 				t.ID,
 				t.PercentDone*100.0,
 				units.HumanSize(float64(t.Have())),
@@ -75,18 +76,67 @@ trr list -filter uploading -sort added,name - list uloading torrents sorted by
 	},
 }
 
+func setSort(t *transmission.TransmissionClient, s string) {
+	switch s {
+	case "-id":
+		t.SetSort(transmission.SortRevID)
+	case "name":
+		t.SetSort(transmission.SortName)
+	case "-name":
+		t.SetSort(transmission.SortRevName)
+	case "age":
+		t.SetSort(transmission.SortAge)
+	case "-age":
+		t.SetSort(transmission.SortRevAge)
+	case "size":
+		t.SetSort(transmission.SortSize)
+	case "-size":
+		t.SetSort(transmission.SortRevSize)
+	case "progress":
+		t.SetSort(transmission.SortProgress)
+	case "-progress":
+		t.SetSort(transmission.SortRevProgress)
+	case "downspeed":
+		t.SetSort(transmission.SortDownSpeed)
+	case "-downspeed":
+		t.SetSort(transmission.SortRevDownSpeed)
+	case "upspeed":
+		t.SetSort(transmission.SortUpSpeed)
+	case "-upspeed":
+		t.SetSort(transmission.SortRevUpSpeed)
+	case "downloaded":
+		t.SetSort(transmission.SortDownloaded)
+	case "-downloaded":
+		t.SetSort(transmission.SortRevDownloaded)
+	case "uploaded":
+		t.SetSort(transmission.SortUploaded)
+	case "-uploaded":
+		t.SetSort(transmission.SortRevUploaded)
+	case "ratio":
+		t.SetSort(transmission.SortRatio)
+	case "-ratio":
+		t.SetSort(transmission.SortRevRatio)
+	default:
+		t.SetSort(transmission.SortID)
+	}
+}
+
 // ETA prints a human readable eta for the torrent
 func ETA(t *transmission.Torrent) string {
-	if t.LeftUntilDone == 0 {
+	if t.LeftUntilDone == 0 || t.Eta == 0 {
 		return ""
 	}
-	if t.Eta < 0 && t.RateDownload > 0 {
-		t.Eta = time.Duration(t.LeftUntilDone / t.RateDownload)
+	if t.Eta > 0 {
+		return units.HumanDuration(t.Eta * time.Second)
 	}
-	if t.Eta < 0 {
-		return "∞"
+	if t.RateDownload > 0 {
+		return units.HumanDuration(time.Duration(t.LeftUntilDone/t.RateDownload)*time.Second) + "*"
 	}
-	return units.HumanDuration(t.Eta * time.Second)
+	if t.PercentDone > 0.0 {
+		timeRemaining := time.Duration((1.0/t.PercentDone - 1.0) * float64(time.Now().Unix()-t.AddedDate))
+		return units.HumanDuration(timeRemaining*time.Second) + "+"
+	}
+	return "∞"
 }
 
 // Status prints a human readable status for the torrent
