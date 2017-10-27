@@ -29,7 +29,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var torrents string
+var torrents, sort string
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
@@ -43,13 +43,14 @@ trr list -sort active - list all torrents sorted by the time they were last acti
 trr list -filter uploading -sort added,name - list uloading torrents sorted by
     when they were added, and then by name`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("list(server: %s, torrents: %s)\n", server, torrents)
+		fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sort)
 		a := fmt.Sprintf("http://%s/transmission/rpc", server)
 		x, err := transmission.New(a, "", "")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
+		setSort(x, sort)
 		ts, err := x.GetTorrents()
 		if err != nil {
 			fmt.Println(err)
@@ -186,6 +187,7 @@ func init() {
 	// and all subcommands, e.g.:
 	// listCmd.PersistentFlags().String("foo", "", "A help for foo")
 	listCmd.PersistentFlags().StringVar(&torrents, "torrents", "all", "which torrents to operate on")
+	listCmd.PersistentFlags().StringVar(&sort, "sort", "id", "what field to sort on")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
