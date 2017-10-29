@@ -22,17 +22,14 @@ package cmd
 
 import (
 	"fmt"
-	"os"
+	"log"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var (
-	cfgFile string
-	server  string
-)
+var cfgFile, server, user, pass string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -50,8 +47,7 @@ commands to control the server, and to operate on torrents.`,
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
@@ -62,8 +58,12 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.trr.yaml)")
-	RootCmd.PersistentFlags().StringVar(&server, "server", "localhost:9091", "which server to operate on")
-	viper.BindPFlag("server", RootCmd.PersistentFlags().Lookup("server"))
+
+	RootCmd.PersistentFlags().StringVar(&server, "server", "", "which server to operate on")
+	err := viper.BindPFlag("server", RootCmd.PersistentFlags().Lookup("server"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	viper.SetDefault("server", "localhost:9091")
 
 	// Cobra also supports local flags, which will only run
@@ -81,8 +81,7 @@ func initConfig() {
 		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 
 		// Search config in home directory with name ".trr" (without extension).
