@@ -60,7 +60,7 @@ trr list -filter uploading -sort added,name - list uloading torrents sorted by
 		//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
 		fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
 		for _, t := range ts {
-			fmt.Printf("%5d %3.0f%% %9s %9s %7s %7s %5.1f %-13s %s\n",
+			fmt.Printf("%5d %3.0f%% %9s %10s %8s %8s %5.1f %-13s %s\n",
 				t.ID,
 				t.PercentDone*100.0,
 				units.HumanSize(float64(t.Have())),
