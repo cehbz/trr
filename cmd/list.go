@@ -42,39 +42,41 @@ trr list - list all torrents for default tracker
 trr list -sort active - list all torrents sorted by the time they were last active
 trr list -filter uploading -sort added,name - list uloading torrents sorted by
     when they were added, and then by name`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sort)
-		a := fmt.Sprintf("http://%s/transmission/rpc", server)
-		x, err := transmission.New(a, "", "")
+	Run: doList,
+}
+
+func doList(cmd *cobra.Command, args []string) {
+	fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sort)
+	a := fmt.Sprintf("http://%s/transmission/rpc", server)
+	x, err := transmission.New(a, user, pass)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	setSort(x, sort)
+	ts, err := x.GetTorrents()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// ID     Done       Have  ETA           Up    Down  Ratio  Status       Name
+	//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
+	fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
+	for _, t := range ts {
+		fmt.Printf("%5d %3.0f%% %9s %10s %8s %8s %5.1f %-13s %s\n",
+			t.ID,
+			t.PercentDone*100.0,
+			units.HumanSize(float64(t.Have())),
+			ETA(t),
+			units.HumanSize(float64(t.RateUpload)),
+			units.HumanSize(float64(t.RateDownload)),
+			t.UploadRatio,
+			Status(t),
+			t.Name)
 		if err != nil {
 			fmt.Println(err)
-			return
 		}
-		setSort(x, sort)
-		ts, err := x.GetTorrents()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		// ID     Done       Have  ETA           Up    Down  Ratio  Status       Name
-		//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
-		fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
-		for _, t := range ts {
-			fmt.Printf("%5d %3.0f%% %9s %10s %8s %8s %5.1f %-13s %s\n",
-				t.ID,
-				t.PercentDone*100.0,
-				units.HumanSize(float64(t.Have())),
-				ETA(t),
-				units.HumanSize(float64(t.RateUpload)),
-				units.HumanSize(float64(t.RateDownload)),
-				t.UploadRatio,
-				Status(t),
-				t.Name)
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	},
+	}
 }
 
 func setSort(t *transmission.TransmissionClient, s string) {
