@@ -23,6 +23,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +33,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var sort string
+var sortBy string
+
+type myTorrents transmission.Torrents
+
+type sorter func(t myTorrents, i, j int) bool
+
+var less sorter
+
+func (t myTorrents) Len() int           { return len(t) }
+func (t myTorrents) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t myTorrents) Less(i, j int) bool { return less(t, i, j) }
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
@@ -49,14 +60,13 @@ trr list -filter uploading -sort added,name - list uloading torrents sorted by
 }
 
 func doList(cmd *cobra.Command, args []string) {
-	fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sort)
+	fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sortBy)
 	a := fmt.Sprintf("http://%s/transmission/rpc", server)
 	x, err := transmission.New(a, user, pass)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	setSort(x, sort)
 	c := transmission.NewGetTorrentsCmd()
 	if torrents != "all" {
 		idStrings := strings.Split(torrents, ",")
@@ -76,6 +86,10 @@ func doList(cmd *cobra.Command, args []string) {
 		return
 	}
 	ts := res.Arguments.Torrents
+	if sortBy != "" {
+		less = getSorter(sortBy)
+		sort.Sort(myTorrents(ts))
+	}
 	// ID     Done       Have  ETA           Up    Down  Ratio  Status       Name
 	//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
 	fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
@@ -84,7 +98,7 @@ func doList(cmd *cobra.Command, args []string) {
 			t.ID,
 			t.PercentDone*100.0,
 			units.HumanSize(float64(t.Have())),
-			ETA(t),
+			myDuration(myETA(t)*time.Second),
 			units.HumanSize(float64(t.RateUpload)),
 			units.HumanSize(float64(t.RateDownload)),
 			t.UploadRatio,
@@ -96,67 +110,82 @@ func doList(cmd *cobra.Command, args []string) {
 	}
 }
 
-func setSort(t *transmission.TransmissionClient, s string) {
+func getSorter(s string) sorter {
 	switch s {
+	case "id":
+		return func(t myTorrents, i, j int) bool { return t[i].ID < t[j].ID }
 	case "-id":
-		t.SetSort(transmission.SortRevID)
+		return func(t myTorrents, i, j int) bool { return t[i].ID > t[j].ID }
 	case "name":
-		t.SetSort(transmission.SortName)
+		return func(t myTorrents, i, j int) bool { return t[i].Name < t[j].Name }
 	case "-name":
-		t.SetSort(transmission.SortRevName)
+		return func(t myTorrents, i, j int) bool { return t[i].Name > t[j].Name }
 	case "age":
-		t.SetSort(transmission.SortAge)
+		return func(t myTorrents, i, j int) bool { return t[i].AddedDate < t[j].AddedDate }
 	case "-age":
-		t.SetSort(transmission.SortRevAge)
+		return func(t myTorrents, i, j int) bool { return t[i].AddedDate > t[j].AddedDate }
 	case "size":
-		t.SetSort(transmission.SortSize)
+		return func(t myTorrents, i, j int) bool { return t[i].SizeWhenDone < t[j].SizeWhenDone }
 	case "-size":
-		t.SetSort(transmission.SortRevSize)
+		return func(t myTorrents, i, j int) bool { return t[i].SizeWhenDone > t[j].SizeWhenDone }
 	case "progress":
-		t.SetSort(transmission.SortProgress)
+		return func(t myTorrents, i, j int) bool { return t[i].PercentDone < t[j].PercentDone }
 	case "-progress":
-		t.SetSort(transmission.SortRevProgress)
+		return func(t myTorrents, i, j int) bool { return t[i].PercentDone > t[j].PercentDone }
 	case "downspeed":
-		t.SetSort(transmission.SortDownSpeed)
+		return func(t myTorrents, i, j int) bool { return t[i].RateDownload < t[j].RateDownload }
 	case "-downspeed":
-		t.SetSort(transmission.SortRevDownSpeed)
+		return func(t myTorrents, i, j int) bool { return t[i].RateDownload > t[j].RateDownload }
 	case "upspeed":
-		t.SetSort(transmission.SortUpSpeed)
+		return func(t myTorrents, i, j int) bool { return t[i].RateUpload < t[j].RateUpload }
 	case "-upspeed":
-		t.SetSort(transmission.SortRevUpSpeed)
+		return func(t myTorrents, i, j int) bool { return t[i].RateUpload > t[j].RateUpload }
 	case "downloaded":
-		t.SetSort(transmission.SortDownloaded)
+		return func(t myTorrents, i, j int) bool { return t[i].DownloadedEver < t[j].DownloadedEver }
 	case "-downloaded":
-		t.SetSort(transmission.SortRevDownloaded)
+		return func(t myTorrents, i, j int) bool { return t[i].DownloadedEver > t[j].DownloadedEver }
 	case "uploaded":
-		t.SetSort(transmission.SortUploaded)
+		return func(t myTorrents, i, j int) bool { return t[i].UploadedEver < t[j].UploadedEver }
 	case "-uploaded":
-		t.SetSort(transmission.SortRevUploaded)
+		return func(t myTorrents, i, j int) bool { return t[i].UploadedEver > t[j].UploadedEver }
 	case "ratio":
-		t.SetSort(transmission.SortRatio)
+		return func(t myTorrents, i, j int) bool { return t[i].UploadRatio < t[j].UploadRatio }
 	case "-ratio":
-		t.SetSort(transmission.SortRevRatio)
+		return func(t myTorrents, i, j int) bool { return t[i].UploadRatio > t[j].UploadRatio }
+	case "eta":
+		return func(t myTorrents, i, j int) bool { return myETA(t[i]) < myETA(t[j]) }
+	case "-eta":
+		return func(t myTorrents, i, j int) bool { return myETA(t[i]) > myETA(t[j]) }
 	default:
-		t.SetSort(transmission.SortID)
+		return func(t myTorrents, i, j int) bool { return i < j }
 	}
 }
 
-// ETA prints a human readable eta for the torrent
-func ETA(t *transmission.Torrent) string {
+func myETA(t *transmission.Torrent) time.Duration {
 	if t.LeftUntilDone == 0 || t.Eta == 0 {
-		return ""
+		return 0
 	}
 	if t.Eta > 0 {
-		return units.HumanDuration(t.Eta * time.Second)
+		return t.Eta
 	}
 	if t.RateDownload > 0 {
-		return units.HumanDuration(time.Duration(t.LeftUntilDone/t.RateDownload)*time.Second) + "*"
+		return time.Duration(t.LeftUntilDone / t.RateDownload)
 	}
 	if t.PercentDone > 0.0 {
-		timeRemaining := time.Duration((1.0/t.PercentDone - 1.0) * float64(time.Now().Unix()-t.AddedDate))
-		return units.HumanDuration(timeRemaining*time.Second) + "+"
+		return time.Duration((1.0/t.PercentDone - 1.0) * float64(time.Now().Unix()-t.AddedDate))
 	}
-	return "∞"
+	return -1
+}
+
+func myDuration(t time.Duration) string {
+	switch true {
+	case t == 0:
+		return ""
+	case t < 0:
+		return "∞"
+	default:
+		return units.HumanDuration(t)
+	}
 }
 
 // Status prints a human readable status for the torrent
@@ -205,7 +234,7 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// listCmd.PersistentFlags().String("foo", "", "A help for foo")
-	listCmd.PersistentFlags().StringVar(&sort, "sort", "id", "what field to sort on")
+	listCmd.PersistentFlags().StringVar(&sortBy, "sort", "", "what field to sort on")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
