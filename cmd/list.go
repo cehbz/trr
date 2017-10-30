@@ -23,6 +23,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -98,7 +99,7 @@ func doList(cmd *cobra.Command, args []string) {
 			t.ID,
 			t.PercentDone*100.0,
 			units.HumanSize(float64(t.Have())),
-			myDuration(myETA(t)*time.Second),
+			myDuration(myETA(t)),
 			units.HumanSize(float64(t.RateUpload)),
 			units.HumanSize(float64(t.RateDownload)),
 			t.UploadRatio,
@@ -162,26 +163,25 @@ func getSorter(s string) sorter {
 }
 
 func myETA(t *transmission.Torrent) time.Duration {
-	if t.LeftUntilDone == 0 || t.Eta == 0 {
+	switch true {
+	case t.LeftUntilDone == 0 || t.Eta == 0:
 		return 0
+	case t.Eta > 0:
+		return t.Eta * time.Second
+	case t.RateDownload > 0:
+		return time.Duration(t.LeftUntilDone/t.RateDownload) * time.Second
+	case t.PercentDone > 0.0:
+		return time.Duration((1.0/t.PercentDone-1.0)*float64(time.Now().Unix()-t.AddedDate)) * time.Second
+	default:
+		return math.MaxInt64
 	}
-	if t.Eta > 0 {
-		return t.Eta
-	}
-	if t.RateDownload > 0 {
-		return time.Duration(t.LeftUntilDone / t.RateDownload)
-	}
-	if t.PercentDone > 0.0 {
-		return time.Duration((1.0/t.PercentDone - 1.0) * float64(time.Now().Unix()-t.AddedDate))
-	}
-	return -1
 }
 
 func myDuration(t time.Duration) string {
 	switch true {
 	case t == 0:
 		return ""
-	case t < 0:
+	case t == math.MaxInt64:
 		return "∞"
 	default:
 		return units.HumanDuration(t)
