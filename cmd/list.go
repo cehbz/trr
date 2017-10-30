@@ -22,6 +22,9 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	units "github.com/docker/go-units"
@@ -29,7 +32,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var torrents, sort string
+var sort string
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
@@ -54,11 +57,25 @@ func doList(cmd *cobra.Command, args []string) {
 		return
 	}
 	setSort(x, sort)
-	ts, err := x.GetTorrents()
+	c := transmission.NewGetTorrentsCmd()
+	if torrents != "all" {
+		idStrings := strings.Split(torrents, ",")
+		ids := make([]int, len(idStrings))
+		for i, id := range idStrings {
+			ids[i], err = strconv.Atoi(id)
+			if err != nil {
+				log.Print(err)
+				return
+			}
+		}
+		c.Arguments.Ids = ids
+	}
+	res, err := x.ExecuteCommand(c)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	ts := res.Arguments.Torrents
 	// ID     Done       Have  ETA           Up    Down  Ratio  Status       Name
 	//   11    16%   618.8 MB  Unknown      0.0     7.0    0.0  Up & Down    Leo Kottke
 	fmt.Println("   ID Done      Have       ETA      Up    Down Ratio Status        Name")
@@ -188,7 +205,6 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// listCmd.PersistentFlags().String("foo", "", "A help for foo")
-	listCmd.PersistentFlags().StringVar(&torrents, "torrents", "all", "which torrents to operate on")
 	listCmd.PersistentFlags().StringVar(&sort, "sort", "id", "what field to sort on")
 
 	// Cobra supports local flags which will only run when this command

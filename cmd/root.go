@@ -29,7 +29,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile, server, user, pass string
+var cfgFile, pass, server, torrents, user string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -65,6 +65,8 @@ func init() {
 		log.Fatal(err)
 	}
 	viper.SetDefault("server", "localhost:9091")
+
+	RootCmd.PersistentFlags().StringVarP(&torrents, "torrents", "t", "all", "list of torrents to operate on")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
