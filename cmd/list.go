@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charles-haynes/transmission"
 	units "github.com/docker/go-units"
-	"github.com/matthazinski/transmission"
 	"github.com/spf13/cobra"
 )
 
@@ -60,26 +60,56 @@ trr list -filter uploading -sort added,name - list uloading torrents sorted by
 	Run: doList,
 }
 
-func doList(cmd *cobra.Command, args []string) {
-	fmt.Printf("list(server: %s, torrents: %s, sort: %s)\n", server, torrents, sortBy)
+func getServer() *transmission.TransmissionClient {
 	a := fmt.Sprintf("http://%s/transmission/rpc", server)
 	x, err := transmission.New(a, user, pass)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
-	c := transmission.NewGetTorrentsCmd()
-	if torrents != "all" {
-		idStrings := strings.Split(torrents, ",")
-		ids := make([]int, len(idStrings))
-		for i, id := range idStrings {
-			ids[i], err = strconv.Atoi(id)
-			if err != nil {
-				log.Print(err)
-				return
-			}
+	return x
+}
+
+func getTorrents() []int {
+	if torrents == "all" {
+		return nil
+	}
+	idStrings := strings.Split(torrents, ",")
+	ids := make([]int, len(idStrings))
+	for i, id := range idStrings {
+		t, err := strconv.Atoi(id)
+		if err != nil {
+			log.Print(err)
+			return nil
 		}
-		c.Arguments.Ids = ids
+		ids[i] = t
+	}
+	return ids
+}
+
+func doList(cmd *cobra.Command, args []string) {
+	x := getServer()
+	c := transmission.NewGetTorrentsCmd()
+	c.Arguments.Ids = getTorrents()
+	c.Arguments.Fields = []string{
+		"addedDate",
+		"error",
+		"errorString",
+		"eta",
+		"haveUnchecked",
+		"haveValid",
+		"id",
+		"isFinished",
+		"leftUntilDone",
+		"name",
+		"peersGettingFromUs",
+		"peersSendingToUs",
+		"percentDone",
+		"rateDownload",
+		"rateUpload",
+		"sizeWhenDone",
+		"status",
+		"uploadRatio",
 	}
 	res, err := x.ExecuteCommand(c)
 	if err != nil {
@@ -197,30 +227,29 @@ func Status(t *transmission.Torrent) string {
 		return "Error"
 	}
 	switch t.Status {
-	case transmission.StatusStopped:
+	case transmission.Stopped:
 		return "Stopped"
-	case transmission.StatusCheckPending:
+	case transmission.CheckPending:
 		return "Wait Verify"
-	case transmission.StatusChecking:
+	case transmission.Checking:
 		return "Verifying"
-	case transmission.StatusDownloadPending:
+	case transmission.DownloadPending:
 		return "Wait Download"
-	case transmission.StatusSeedPending:
+	case transmission.SeedPending:
 		return "Wait Seed"
-	case transmission.StatusSeeding, transmission.StatusDownloading:
-		if t.RateDownload == 0 && t.RateUpload == 0 {
+	case transmission.Seeding, transmission.Downloading:
+		switch true {
+		case t.RateDownload == 0 && t.RateUpload == 0:
 			return "Idle"
-		}
-		if t.RateDownload > 0 && t.RateUpload > 0 {
+		case t.RateDownload > 0 && t.RateUpload > 0:
 			return "Both"
-		}
-		if t.RateDownload > 0 {
+		case t.RateDownload > 0:
 			return "Downloading"
-		}
-		if t.RateUpload > 0 {
+		case t.RateUpload > 0:
 			return "Uploading"
+		default:
+			return "Wat?"
 		}
-		return "Wat"
 	default:
 		return "unknown"
 	}
