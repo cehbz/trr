@@ -192,29 +192,18 @@ func getSorter(s string) sorter {
 	}
 }
 
-func myETA(t *transmission.Torrent) time.Duration {
+func myETA(t *transmission.Torrent) int64 {
 	switch true {
 	case t.LeftUntilDone == 0 || t.Eta == 0:
 		return 0
 	case t.Eta > 0:
-		return t.Eta * time.Second
+		return int64(t.Eta)
 	case t.RateDownload > 0:
-		return time.Duration(t.LeftUntilDone/t.RateDownload) * time.Second
+		return int64(t.LeftUntilDone / t.RateDownload)
 	case t.PercentDone > 0.0:
-		return time.Duration((1.0/t.PercentDone-1.0)*float64(time.Now().Unix()-t.AddedDate)) * time.Second
+		return int64((1.0/t.PercentDone - 1.0) * float64(time.Now().Unix()-t.AddedDate))
 	default:
 		return math.MaxInt64
-	}
-}
-
-func myDuration(t time.Duration) string {
-	switch true {
-	case t == 0:
-		return ""
-	case t == math.MaxInt64:
-		return "∞"
-	default:
-		return units.HumanDuration(t)
 	}
 }
 
