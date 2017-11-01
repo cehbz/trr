@@ -32,14 +32,39 @@ import (
 // trackersCmd represents the trackers command
 var trackersCmd = &cobra.Command{
 	Use:   "trackers",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Info about the trackers of a torrent",
+	Long: `For each torrent, display details about each tracker for that torrent.
+Includes information about tier, peers, seeders, leechers, times for announce and scrape
+as well as the host name of the tracker.`,
 	Run: doInfoTrackers,
+}
+
+func doInfoTrackers(cmd *cobra.Command, args []string) {
+	x := getServer()
+	c := transmission.NewGetTorrentsCmd()
+	c.Arguments.Ids = getTorrents()
+	c.Arguments.Fields = []string{"trackerStats", "id", "name"}
+	res, err := x.ExecuteCommand(c)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	for _, t := range res.Arguments.Torrents {
+		fmt.Printf("Torrent %d: %s\n", t.ID, t.Name)
+		fmt.Println("Tier Peers Se Le    Last Sc    Next Sc   Last Ann   Next Ann Name")
+		for _, s := range t.TrackerStats {
+			fmt.Printf("%4d %5d %2d %2d %10s %10s %10s %10s %s\n",
+				s.Tier,
+				s.LastAnnouncePeerCount,
+				s.SeederCount,
+				s.LeecherCount,
+				myDurationSince(s.LastScrapeTime),
+				myDurationTill(s.NextScrapeTime),
+				myDurationSince(s.LastAnnounceTime),
+				myDurationTill(s.NextAnnounceTime),
+				s.Host)
+		}
+	}
 }
 
 const (
@@ -92,44 +117,6 @@ func myDuration(d int64) string {
 	}
 }
 
-func doInfoTrackers(cmd *cobra.Command, args []string) {
-	x := getServer()
-	c := transmission.NewGetTorrentsCmd()
-	c.Arguments.Ids = getTorrents()
-	c.Arguments.Fields = []string{"trackerStats", "id", "name"}
-	res, err := x.ExecuteCommand(c)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	for _, t := range res.Arguments.Torrents {
-		fmt.Printf("Torrent %d: %s\n", t.ID, t.Name)
-		fmt.Println("Tier Peers Se Le    Last Sc    Next Sc   Last Ann   Next Ann Name")
-		for _, t := range t.TrackerStats {
-			fmt.Printf("%4d %5d %2d %2d %10s %10s %10s %10s %s\n",
-				t.Tier,
-				t.LastAnnouncePeerCount,
-				t.SeederCount,
-				t.LeecherCount,
-				myDurationSince(t.LastScrapeTime),
-				myDurationTill(t.NextScrapeTime),
-				myDurationSince(t.LastAnnounceTime),
-				myDurationTill(t.NextAnnounceTime),
-				t.Host)
-		}
-	}
-}
-
 func init() {
 	infoCmd.AddCommand(trackersCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// trackersCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// trackersCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
