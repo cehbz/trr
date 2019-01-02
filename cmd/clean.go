@@ -22,22 +22,26 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/charles-haynes/transmission"
 	"github.com/spf13/cobra"
 )
 
-// infoCmd represents the info command
-var infoCmd = &cobra.Command{
-	Use:   "info",
-	Short: "Info about a torrent or torrents",
-	Long: `Display detailed information about a torrent or torrents.
+// cleanCmd represents the clean command
+var cleanCmd = &cobra.Command{
+	Use:   "clean",
+	Short: "Clean up unregistered torrents",
+	Long: `Clean up unregistered torrents
 
-Takes list of torrent specifiers, and returns details about those torrents. Defaults to all.`,
-	Run: doInfo,
+Remove any unregistered torrents that have the same name as a registered 
+torrent. Print a list of all other unregistered torrents. Takes list of torrent 
+specifiers, Defaults to all.`,
+	Run: doClean,
 }
 
-func doInfo(cmd *cobra.Command, args []string) {
+func doClean(cmd *cobra.Command, args []string) {
 	x := getServer()
 	c := transmission.NewGetTorrentsCmd()
 	c.Arguments.Ids = getTorrents()
@@ -48,23 +52,29 @@ func doInfo(cmd *cobra.Command, args []string) {
 		return
 	}
 	ts := res.Arguments.Torrents
+	r := map[string]interface{}{}
 	for _, t := range ts {
-		l := fmt.Sprintf(
-			`"%d","%s","%s","%s"`,
-			t.ID,
-			t.Name,
-			t.Hash[0:16],
-			t.ErrorString)
-		fmt.Println(l)
+		if t.ErrorString != "Unregistered torrent" {
+			r[t.Name] = nil
+		}
 	}
+	fmt.Printf("# %d registered torrents\n", len(r))
+	d := []string{}
+	for _, t := range ts {
+		if t.ErrorString == "Unregistered torrent" {
+			d = append(d, strconv.Itoa(t.ID))
+			if _, ok := r[t.Name]; !ok {
+				l := fmt.Sprintf(
+					`cp -v "%s.%s.torrent" ~/uploadable`,
+					t.Name,
+					t.Hash[0:16])
+				fmt.Println(l)
+			}
+		}
+	}
+	fmt.Printf("transmission-remote %s -t %s -r", server, strings.Join(d, ","))
 }
 
 func init() {
-	RootCmd.AddCommand(infoCmd)
-
-	// infoCmd.PersistentFlags().StringVarP(&torrents, "torrents", "t", "all", "list of torrents")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// infoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.AddCommand(cleanCmd)
 }
